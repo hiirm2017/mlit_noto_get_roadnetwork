@@ -8,7 +8,7 @@ import imageio
 import numpy as np
 from datetime import datetime, timedelta
 
-# 共通のベースフォルダ．データ期間の設定，MILIウェブサイトのURL指定
+# 共通のベースフォルダ．データ期間の設定
 base_folder = "/Users/username"
 start_date = "20240112"
 end_date = "20240520"
