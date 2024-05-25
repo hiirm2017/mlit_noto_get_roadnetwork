@@ -4,6 +4,7 @@ import zipfile
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
+from matplotlib.animation import FuncAnimation
 import imageio
 import numpy as np
 from datetime import datetime, timedelta
@@ -35,11 +36,13 @@ def download_zip_files(start_date, end_date, url_pattern, destination_folder):
             print(f"The file does not exist {file_url}")
         current_date += timedelta(days=1)
 
-def extract_and_plot_geojson(start_date, end_date, zip_path_pattern, output_folder):
+def extract_and_plot_geojson(start_date, end_date, zip_path_pattern, output_folder_geojson, output_folder_images):
     current_date = datetime.strptime(start_date, "%Y%m%d")
     end_date = datetime.strptime(end_date, "%Y%m%d")
-    if not os.path.exists(output_folder):
-        os.makedirs(output_folder)
+    if not os.path.exists(output_folder_geojson):
+        os.makedirs(output_folder_geojson)
+    if not os.path.exists(output_folder_images):
+        os.makedirs(output_folder_images)
 
     while current_date <= end_date:
         zip_filename = zip_path_pattern + current_date.strftime('%y%m%d') + '.zip'
@@ -52,8 +55,8 @@ def extract_and_plot_geojson(start_date, end_date, zip_path_pattern, output_fold
         with zipfile.ZipFile(zip_filename, 'r') as z:
             for filename in geojson_filenames:
                 try:
-                    z.extract(filename, output_folder)
-                    extracted_path = os.path.join(output_folder, filename)
+                    z.extract(filename, output_folder_geojson)
+                    extracted_path = os.path.join(output_folder_geojson, filename)
                     break
                 except KeyError:
                     continue
@@ -67,56 +70,65 @@ def extract_and_plot_geojson(start_date, end_date, zip_path_pattern, output_fold
         gdf.plot(ax=ax)
         ax.set_xlim([136.6, 137.4])
         ax.set_ylim([36.7, 37.6])
-        plot_filename = os.path.join(output_folder, f'plot_{current_date.strftime("%Y%m%d")}.png')
+        plot_filename = os.path.join(output_folder_images, f'plot_{current_date.strftime("%Y%m%d")}.png')
         plt.savefig(plot_filename)
         plt.close()
 
-        filtered_geojson_path = os.path.join(output_folder, f'{current_date.strftime("%Y%m%d")}.geojson')
+        filtered_geojson_path = os.path.join(output_folder_geojson, f'{current_date.strftime("%Y%m%d")}.geojson')
         gdf.to_file(filtered_geojson_path, driver='GeoJSON')
         current_date += timedelta(days=1)
 
-def create_gif_from_plots(start_date, end_date, plot_folder, gif_output_path):
+def create_mp4_from_plots(start_date, end_date, plot_folder, video_output_path):
     start_date = datetime.strptime(start_date, "%Y%m%d")
     end_date = datetime.strptime(end_date, "%Y%m%d")
 
-    png_files = []
+    image_files = []
+    dates = []  # 日付を保持するリスト
     current_date = start_date
     while current_date <= end_date:
         plot_filename = os.path.join(plot_folder, f'plot_{current_date.strftime("%Y%m%d")}.png')
         if os.path.exists(plot_filename):
-            png_files.append((plot_filename, current_date.strftime("%Y-%m-%d")))
+            image_files.append(plot_filename)
+            dates.append(current_date.strftime("%Y-%m-%d"))  # 日付を追加
         current_date += timedelta(days=1)
 
-    with imageio.get_writer(gif_output_path, mode='I', duration=1.0) as writer:
-        for filename, date in png_files:
-            image = mpimg.imread(filename)
-            fig, ax = plt.subplots(dpi=300)
-            ax.imshow(image)
-            ax.text(136.7, 37.55, date, color='white', fontsize=12, ha='center', va='center', backgroundcolor='black')
-            ax.axis('off') 
-            
-            fig.canvas.draw()
-            image_from_plot = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
-            image_from_plot = image_from_plot.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-            writer.append_data(image_from_plot)
-            
-            plt.close()
+    if not image_files:
+        print("No images found. Exiting...")
+        return
 
-    print(f"GIF created at {gif_output_path}")
+    fig, ax = plt.subplots()
+
+    initial_image = mpimg.imread(image_files[0])
+    im = ax.imshow(initial_image)
+    txt = ax.text(0.5, 0.01, dates[0], color='white', fontsize=12, ha='center', va='center', transform=ax.transAxes, backgroundcolor='black')
+    ax.axis('off')  # 軸を非表示にする
+
+    def update(frame):
+        img = mpimg.imread(image_files[frame])
+        im.set_data(img)
+        txt.set_text(dates[frame])  # 日付のテキストを更新
+        return im, txt 
+
+    ani = FuncAnimation(fig, update, frames=len(image_files), blit=True)
+    ani.save(video_output_path, writer='ffmpeg', fps=1, dpi=300)
+
+    print(f"Video created at {video_output_path}")
+    plt.close()
 
 # 以下実行コード
 
 # MLITウェブサイトからデータをダウンロード
-download_folder = os.path.join(base_folder, "MLIT_disrup_data")
+download_folder = os.path.join(base_folder, "download_zip_data")
 url_pattern = "https://www.mlit.go.jp/road/r6noto/{0}data.zip"
 download_zip_files(start_date, end_date, url_pattern, download_folder)
 
 # GeoJSON抽出とプロット
 geojson_input_folder = os.path.join(download_folder, 'data_')
-output_folder_geojson = os.path.join(base_folder, "tentative_output_geojson")
-extract_and_plot_geojson(start_date, end_date, geojson_input_folder, output_folder_geojson)
+output_folder_geojson = os.path.join(base_folder, "extract_geojson")
+output_folder_images = os.path.join(base_folder, "output_images")
+extract_and_plot_geojson(start_date, end_date, geojson_input_folder, output_folder_geojson, output_folder_images)
 
 # GIF生成
-output_folder_gif = os.path.join(base_folder, "tentative_output")
-gif_output_path = os.path.join(base_folder, "output_animation.gif")
-create_gif_from_plots(start_date, end_date, output_folder_gif, gif_output_path)
+output_folder_images = os.path.join(base_folder, "output_images")
+video_output_path = os.path.join(base_folder, "output_animation.mp4")
+create_mp4_from_plots("20240112", "20240520", output_folder_images, video_output_path)
