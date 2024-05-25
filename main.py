@@ -9,7 +9,7 @@ import numpy as np
 from datetime import datetime, timedelta
 
 # 共通のベースフォルダ．データ期間の設定
-base_folder = "/Users/username"
+base_folder = "/Users/makoto/Downloads"
 start_date = "20240112"
 end_date = "20240520"
 
@@ -76,11 +76,9 @@ def extract_and_plot_geojson(start_date, end_date, zip_path_pattern, output_fold
         current_date += timedelta(days=1)
 
 def create_gif_from_plots(start_date, end_date, plot_folder, gif_output_path):
-    # 文字列から datetime オブジェクトに変換
     start_date = datetime.strptime(start_date, "%Y%m%d")
     end_date = datetime.strptime(end_date, "%Y%m%d")
 
-    # PNGファイルのリストを作成
     png_files = []
     current_date = start_date
     while current_date <= end_date:
@@ -89,18 +87,14 @@ def create_gif_from_plots(start_date, end_date, plot_folder, gif_output_path):
             png_files.append((plot_filename, current_date.strftime("%Y-%m-%d")))
         current_date += timedelta(days=1)
 
-    # GIFファイルを作成
     with imageio.get_writer(gif_output_path, mode='I', duration=1.0) as writer:
         for filename, date in png_files:
-            # 画像を読み込む
             image = mpimg.imread(filename)
-            fig, ax = plt.subplots(dpi=300)  # DPIを設定
+            fig, ax = plt.subplots(dpi=300)
             ax.imshow(image)
-            # 日付を追加
             ax.text(136.7, 37.55, date, color='white', fontsize=12, ha='center', va='center', backgroundcolor='black')
-            ax.axis('off')  # 軸と枠を非表示に
-
-            # プロットを画像データに変換してGIFに追加
+            ax.axis('off') 
+            
             fig.canvas.draw()
             image_from_plot = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
             image_from_plot = image_from_plot.reshape(fig.canvas.get_width_height()[::-1] + (3,))
